@@ -2,7 +2,7 @@
 
 Release preparation on 2026-09-27:
 
-- 28 Python tests: original status/receipt behavior plus Borg profile/due logic,
+- 29 Python tests: original status/receipt behavior plus Borg profile/due logic,
   separate verification evidence, preserved success after failure, cache selection,
   unexpected subvolume refusal, cleanup after capture failure, and root helper
   argument/identity checks.
@@ -37,3 +37,6 @@ as the normal user and deleted successfully. The installer copied the release he
 This is a snapshot lifecycle test, not a full NAS backend run.
 The user-unit installer left the new timer disabled. Legacy XPS status matched
 the existing production adapter; the live alpha UI continues to use that backend.
+
+CI exposed a timezone-dependent timer fixture. The adapter now requests Unix
+timestamps from systemd, and a regression test checks offset-independent parsing.

@@ -37,7 +37,7 @@ def parse_time(value):
 def unit_properties(unit):
     try:
         result = subprocess.run(
-            ['systemctl', '--user', 'show', unit, '--property=LoadState,ActiveState,SubState,UnitFileState,NextElapseUSecRealtime,Result'],
+            ['systemctl', '--user', 'show', unit, '--timestamp=unix', '--property=LoadState,ActiveState,SubState,UnitFileState,NextElapseUSecRealtime,Result'],
             capture_output=True, text=True, timeout=3, check=False)
         if result.returncode or len(result.stdout) > 8192:
             return None
@@ -96,6 +96,9 @@ def next_check(props, now):
     raw = props.get('NextElapseUSecRealtime', '')
     if not raw or raw == 'n/a':
         return None
+    if re.fullmatch(r'@[0-9]+(?:\.[0-9]+)?', raw):
+        try:return datetime.fromtimestamp(float(raw[1:]),tz=now.tzinfo)
+        except (ValueError,OverflowError,OSError):return None
     parsed = parse_time(raw)
     if parsed:
         return parsed

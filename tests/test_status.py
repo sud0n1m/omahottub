@@ -20,7 +20,7 @@ RECEIPT = {
 }
 SERVICE = {'LoadState': 'loaded', 'ActiveState': 'inactive', 'SubState': 'dead'}
 TIMER = {'LoadState': 'loaded', 'ActiveState': 'active', 'UnitFileState': 'enabled',
-         'NextElapseUSecRealtime': 'Wed 2026-09-23 19:15:00 PDT'}
+         'NextElapseUSecRealtime': '2026-09-23T19:15:00-07:00'}
 INVENTORY = {'generations': [{}], 'partial_generations': 0}
 
 
@@ -29,6 +29,11 @@ def view(current=None, receipt=RECEIPT, failure=None, service=SERVICE, timer=TIM
 
 
 class BackupStatusTests(unittest.TestCase):
+    def test_unix_timer_timestamp_is_timezone_independent(self):
+        when = datetime.fromisoformat('2026-09-23T19:15:00-07:00')
+        parsed = status.next_check({'NextElapseUSecRealtime': '@' + str(int(when.timestamp()))}, NOW)
+        self.assertEqual(parsed, when)
+
     def test_capacity_failure_is_actionable_without_private_detail(self):
         result = view({'status':'failed','reason':'Capture exceeds 64 GiB uncompressed safety bound','time':NOW.isoformat()})
         self.assertIn('capture size limit',result['reason'])
