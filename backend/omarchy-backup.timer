@@ -1,0 +1,9 @@
+[Unit]
+Description=Check Omarchy Backup eligibility hourly
+[Timer]
+OnStartupSec=10min
+OnCalendar=hourly
+Persistent=true
+Unit=omarchy-backup.service
+[Install]
+WantedBy=timers.target

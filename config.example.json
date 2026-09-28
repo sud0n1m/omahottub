@@ -1,0 +1,12 @@
+{
+  "backend": "borg",
+  "borg": "borg",
+  "repository": "ssh://backup@nas.example/home/backup/repository",
+  "ssh_key": "~/.ssh/omarchy-backup",
+  "known_hosts": "~/.config/omarchy-backup/known_hosts",
+  "password_file": "~/.config/omarchy-backup/password",
+  "due_hour": 18,
+  "require_ac": true,
+  "exclude_prefixes": [],
+  "exclude_directories": []
+}

@@ -1,0 +1,20 @@
+name: Tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+      - name: Fetch pinned Borg 1.4.5 test executable
+        run: |
+          curl --fail --location --retry 3 https://github.com/borgbackup/borg/releases/download/1.4.5/borg-linux-glibc231-x86_64 -o /tmp/borg-test
+          echo 'c8457f70660064d0f45b38283ab4cc65b342970012013201d3aec713a75898fb  /tmp/borg-test' | sha256sum -c -
+          chmod 700 /tmp/borg-test
+      - name: Real encrypted backup and restore
+        env:
+          BORG_TEST_BINARY: /tmp/borg-test
+        run: python3 tests/integration_borg.py

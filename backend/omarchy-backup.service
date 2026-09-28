@@ -1,0 +1,12 @@
+[Unit]
+Description=Omarchy Backup alpha — Btrfs snapshot to Borg
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-backup run
+TimeoutStartSec=5h
+TimeoutStopSec=90s
+KillMode=control-group
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+# NoNewPrivileges intentionally omitted: only the fixed snapshot helper uses sudo.
