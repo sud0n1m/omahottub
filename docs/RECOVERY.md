@@ -10,7 +10,7 @@ repository copy before destructive recovery procedures.
 To inspect history, use the configured Borg 1.4 client with the same pinned SSH
 transport and private password handling. The runner's private `last-success.json`
 records its most recent archive. Restore into a new directory with
-`omarchy-backup restore --archive NAME --destination NEW_DIRECTORY`.
+`omahottub restore --archive NAME --destination NEW_DIRECTORY`.
 Do not overlay a live home. Verify hashes and permissions, and open restored
 application databases using their native tools. A generic SQLite integrity check
 may require app-specific functions/extensions. Restore only copies, never run
@@ -33,7 +33,7 @@ sudo -n /usr/local/libexec/omarchy-backup/snapshot audit
 sudo -n /usr/local/libexec/omarchy-backup/snapshot delete
 ```
 
-After cleanup, run `omarchy-backup doctor` to confirm readiness and clear any
+After cleanup, run `omahottub doctor` to confirm readiness and clear any
 cleanup-needed marker. A cleanup failure cannot be hidden by a later skipped run.
 
 Deletion verifies its stored subvolume UUID and read-only property. A missing
@@ -54,7 +54,7 @@ both repositories and credentials until recovery is independently verified.
 2. Clean up a tracked snapshot as above. Do not remove helper metadata first.
 3. Remove the plugin with `omarchy plugin remove sudonim.xps-backup` only if you
    intend to remove the backup UI. The legacy installation uses that same ID.
-4. Remove the two `omarchy-backup.*` user units, `~/.local/bin/omarchy-backup`
+4. Remove the two `omarchy-backup.*` user units, `~/.local/bin/omarchy-backup`, `~/.local/bin/omahottub`
    and `~/.local/lib/omarchy-backup`, then `systemctl --user daemon-reload`.
 5. An administrator can remove `/etc/sudoers.d/omarchy-backup`, the installed
    helper and `/etc/omarchy-backup/snapshot.json`. Remove their directories only

@@ -146,7 +146,7 @@ Item {
     target: "xps-backup"
     function status(): string { return JSON.stringify(root.status) }
     function refresh(): string { root.refresh(); return "ok" }
-    function diagnostics(): string { return JSON.stringify({revision: "alpha-0.1.0-1", refreshing: root.refreshing,
+    function diagnostics(): string { return JSON.stringify({revision: "alpha-0.1.0-2", refreshing: root.refreshing,
       requestPhase: root.requestPhase, panelOpen: root.panelOpen, pollInterval: root.pollInterval,
       canRequest: root.canRequest}) }
   }

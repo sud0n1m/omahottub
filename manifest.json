@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "id": "sudonim.xps-backup",
-  "name": "Omarchy Backup",
-  "version": "0.1.0-alpha.1",
+  "name": "Omahottub",
+  "version": "0.1.0-alpha.2",
   "author": "Colin Nederkoorn",
   "license": "MIT",
   "description": "Backup status for Omarchy, with an opt-in Btrfs and Borg-over-SSH alpha backend.",
@@ -16,7 +16,7 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "Backup",
+    "displayName": "Omahottub",
     "category": "System",
     "allowMultiple": false,
     "defaultSection": "right"

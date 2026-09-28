@@ -1,10 +1,17 @@
-# Omarchy Backup — alpha
+# Omahottub — alpha
+
+A hot tub time machine for your Omarchy files.
+
+Formerly Omarchy Backup. The `omahottub` command and the original
+`omarchy-backup` command run the same backend. Existing `omarchy-backup`
+configuration paths, systemd units, snapshot helper and `sudonim.xps-backup`
+plugin ID stay unchanged for compatibility; no backup migration is required.
 
 A quiet backup panel for Omarchy Quattro, with an optional Btrfs + Borg 1.4
 backup runner. The action stays in one place while status refreshes. Saved
 backups, latest attempts, and verification evidence are distinct.
 
-**0.1.0-alpha.1 is for evaluation.** Keep an existing backup until you have
+**0.1.0-alpha.2 is for evaluation.** Keep an existing backup until you have
 restored and verified your own files. This is a home-data backup, not a bootable
 system image. The new privileged helper and Borg runner are intentionally small,
 but the packaged backend is not yet a proven unattended full-home NAS deployment.
@@ -24,7 +31,7 @@ No pruning or compaction is implemented. Repository storage can grow indefinitel
 ## Install the panel
 
 ```sh
-omarchy plugin add https://github.com/sud0n1m/omarchy-backup.git --enable
+omarchy plugin add https://github.com/sud0n1m/omahottub.git --enable
 ```
 
 Inspect the repository before installing: Omarchy plugins run in the shell
@@ -65,11 +72,11 @@ foreign ownership to the restoring user; Borg retains original IDs in metadata.
 ## Operations
 
 ```sh
-omarchy-backup doctor
-omarchy-backup run                 # only if daily slot is due and eligible
-omarchy-backup check               # explicit full repository data check
-omarchy-backup export-key --destination /a/new/private/key-export
-omarchy-backup restore --archive home-YYYYMMDDTHHMMSSZ-1234abcd --destination /a/new/restore
+omahottub doctor
+omahottub run                 # only if daily slot is due and eligible
+omahottub check               # explicit full repository data check
+omahottub export-key --destination /a/new/private/key-export
+omahottub restore --archive home-YYYYMMDDTHHMMSSZ-1234abcd --destination /a/new/restore
 ```
 
 `check` is deliberately separate from backup. This alpha has no automatic

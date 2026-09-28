@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0-alpha.2
+
+- Rename the project and panel to Omahottub.
+- Add the `omahottub` CLI while retaining `omarchy-backup` compatibility.
+- Preserve configuration, service names, plugin ID and existing backup behavior.
+
 ## 0.1.0-alpha.1
 
 - Package the Paper-designed backup panel with stable action geometry and separate

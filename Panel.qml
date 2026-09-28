@@ -23,7 +23,7 @@ Panel {
     : info.state === "running" ? accent : fg
   readonly property string statusSymbol: info.state === "failure" || info.state === "due" ? "⚠"
     : info.state === "power" || info.state === "nas" || info.state === "manager" || info.state === "cancelled" || info.state === "stopping" ? "Ⅱ" : ""
-  readonly property string tooltip: "Backup: " + (info.headline || "Status unavailable")
+  readonly property string tooltip: "Omahottub: " + (info.headline || "Status unavailable")
     + "\nLast successful: " + (info.lastSuccessAbsolute || "None recorded")
   implicitWidth: iconButton.implicitWidth
   implicitHeight: iconButton.implicitHeight
@@ -153,7 +153,7 @@ Panel {
           id: column
           width: scroll.width
           spacing: 10
-          Text { text: "Backup"; color: root.bright; font.family: root.fontFamily; font.pixelSize: 14; font.bold: true }
+          Text { text: "Omahottub"; color: root.bright; font.family: root.fontFamily; font.pixelSize: 14; font.bold: true }
           Text { text: root.info.backend === "borg" ? "Home snapshot → backup repository" : "Selected files → Synology"; color: root.fg; font.family: root.fontFamily; font.pixelSize: 12 }
           Column {
             visible: !root.details

@@ -37,12 +37,12 @@ credentials or archives.
    Root setup refuses existing installations. It installs only a root-owned
    helper/config and exact sudo commands `create`, `delete`, `audit`. No broad
    sudo permission and no root execution of user-owned backup code is granted.
-6. Run `omarchy-backup doctor`. It checks local readiness, not NAS connectivity.
-   Then `omarchy-backup init` initializes a **new** encrypted repository. Export
-   its key with `omarchy-backup export-key --destination /new/private/key-export`.
+6. Run `omahottub doctor`. It checks local readiness, not NAS connectivity.
+   Then `omahottub init` initializes a **new** encrypted repository. Export
+   its key with `omahottub export-key --destination /new/private/key-export`.
    Store and retrieve the exported key and password off this laptop before
    relying on the repository. Keep maintenance credentials separate.
-7. Run `omarchy-backup run`, then `omarchy-backup check`. Inspect private logs in
+7. Run `omahottub run`, then `omahottub check`. Inspect private logs in
    `~/.local/state/omarchy-backup/`. Warnings count as failure; previous successful
    receipts survive later errors. Restore the archive named in `last-success.json`
    to a fresh location. Verify real content, metadata and application recovery.
