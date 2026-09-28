@@ -11,7 +11,8 @@ base=Path('/var/lib/omarchy-backup');etc=Path('/etc/omarchy-backup');lib=Path('/
 if any(x.exists() for x in [base,etc,lib,Path('/etc/sudoers.d/omarchy-backup')]):raise SystemExit('Existing installation; refusing overwrite. Inspect before upgrade.')
 def trusted_mkdir(path):
     for part in reversed([path,*path.parents]):
-        if not part.exists():part.mkdir(mode=0o755)
+        if not part.exists():
+            part.mkdir(mode=0o755);part.chmod(0o755)
         st=part.lstat()
         if not stat.S_ISDIR(st.st_mode) or st.st_uid!=0 or st.st_mode&0o022:
             raise SystemExit('Untrusted installation ancestor: '+str(part))

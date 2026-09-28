@@ -33,7 +33,7 @@ config is present.
 The fixed-purpose root helper was installed with OS authentication on the
 Btrfs development workstation. The generated exact-command sudo rule passed
 visudo, audit succeeded, and an actual read-only /home snapshot was accessible
-as the normal user and deleted successfully. The installed helper matches the
-release source. This is a snapshot lifecycle test, not a full NAS backend run.
+as the normal user and deleted successfully. The installer copied the release helper source into the root-owned location.
+This is a snapshot lifecycle test, not a full NAS backend run.
 The user-unit installer left the new timer disabled. Legacy XPS status matched
 the existing production adapter; the live alpha UI continues to use that backend.
