@@ -30,8 +30,10 @@ No production cutover is performed by publishing this alpha. Backend selection
 is explicit. Existing legacy XPS operation remains supported when no new backend
 config is present.
 
-The fixed-purpose root helper installation/audit on the development workstation
-is awaiting OS authentication at release preparation. Its mocked boundary tests
-pass; a successful privileged installation has not yet been claimed. The local
-user-unit installer was exercised and leaves the new timer disabled. Legacy
-XPS status output matched the existing production adapter exactly.
+The fixed-purpose root helper was installed with OS authentication on the
+Btrfs development workstation. The generated exact-command sudo rule passed
+visudo, audit succeeded, and an actual read-only /home snapshot was accessible
+as the normal user and deleted successfully. The installed helper matches the
+release source. This is a snapshot lifecycle test, not a full NAS backend run.
+The user-unit installer left the new timer disabled. Legacy XPS status matched
+the existing production adapter; the live alpha UI continues to use that backend.
