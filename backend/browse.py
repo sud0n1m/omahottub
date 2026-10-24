@@ -7,7 +7,7 @@ from common import STATE,write
 ARCHIVE=re.compile(r'home-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}')
 RESTORED=Path.home()/'Restored'
 INDEX_VERSION='1'
-KEEP_INDEXES=5
+KEEP_INDEXES=3
 HEADROOM=1024**3
 
 def archive_name(name):

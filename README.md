@@ -94,9 +94,10 @@ omahottub restore --archive home-YYYYMMDDTHHMMSSZ-1234abcd --path Projects/app
 ```
 
 The first `ls` of an archive builds a local index from Borg's listing; later
-folders open without contacting the NAS. Indexes for the five newest browsed
-archives are kept in private state (about 70 MB per million files) and are
-excluded from backup. Partial restores land in `~/Restored/ARCHIVE/PATH`, never
+folders open without contacting the NAS. Indexes for the three newest indexed
+archives are kept in private state and are excluded from backup. On the
+author's XPS a 949,000-file archive indexed in about 20 seconds, including Borg's
+listing over the LAN, into a 170 MB index. Partial restores land in `~/Restored/ARCHIVE/PATH`, never
 on top of your current files. A path that was already restored there is refused,
 not overwritten; move it away first. Paths are matched literally, so names such
 as `sh:*` restore only themselves. Add `--json` for machine-readable output.
