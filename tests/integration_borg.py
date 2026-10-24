@@ -2,10 +2,12 @@
 """Real Borg 1.4 capture, no-change incremental, fresh-cache restore and data check.
 Synthetic only. Set BORG_TEST_BINARY to a trusted Borg executable.
 """
-import hashlib,json,os,secrets,shutil,sqlite3,stat,sys,tempfile
+import contextlib,hashlib,io,json,os,secrets,shutil,sqlite3,stat,sys,tempfile
+from unittest.mock import patch
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from backend import backup,common
+import browse
 
 def manifest(root):
  rows={};inodes={}
@@ -19,8 +21,8 @@ def manifest(root):
 
 os.umask(0o077)
 with tempfile.TemporaryDirectory(prefix='omarchy-backup-integration-') as tmp:
- root=Path(tmp);backup.STATE=root/'state';backup.STATE.mkdir();source=root/'source';source.mkdir()
- for name in ['file','line\nbreak','--name','app/IndexedDB/store']:
+ root=Path(tmp);backup.STATE=browse.STATE=root/'state';backup.STATE.mkdir();source=root/'source';source.mkdir()
+ for name in ['file','line\nbreak','--name','app/IndexedDB/store','sh:*','app-other/keep']:
   p=source/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(secrets.token_bytes(1024))
  (source/'private').write_text('synthetic');(source/'private').chmod(0o600);os.setxattr(source/'private','user.test',b'yes');os.link(source/'private',source/'hardlink');(source/'link').symlink_to('/not-present');(source/'empty').mkdir()
  with sqlite3.connect(source/'state.sqlite') as db:db.execute('CREATE TABLE t(x)');db.execute('INSERT INTO t VALUES (42)')
@@ -35,4 +37,28 @@ with tempfile.TemporaryDirectory(prefix='omarchy-backup-integration-') as tmp:
  assert manifest(restored)==expected
  with sqlite3.connect(restored/'state.sqlite') as db:assert db.execute('PRAGMA integrity_check').fetchall()==[('ok',)];assert db.execute('SELECT x FROM t').fetchall()==[(42,)]
  backup.borg(c,['check','--verify-data',c['repository']],'check')
- print(json.dumps({'initial_backup':True,'unchanged_new_data_bytes':second['stats']['deduplicated_size'],'fresh_cache_full_restore':True,'hashes_modes_xattrs_links_match':True,'sqlite_integrity':True,'full_data_check':True}))
+ # Restore browser: list, index from Borg, browse, partial restores that never overwrite.
+ assert [x['name'] for x in browse.archives(c,backup.borg)]==[second['archive'],first['archive']]
+ browse.build_index(c,backup.borg,first['archive']);assert not (backup.STATE/'index.stdout').exists()
+ top={x['name']:x['type'] for x in browse.listing(first['archive'],'')['entries']}
+ assert top=={k:('d' if (source/k).is_dir() and not (source/k).is_symlink() else 'l' if (source/k).is_symlink() else '-') for k in os.listdir(source)},top
+ assert [x['name'] for x in browse.listing(first['archive'],'app/IndexedDB')['entries']]==['store']
+ picked=root/'picked'
+ for path in ['sh:*','line\nbreak','app']:
+  out=browse.restore(c,backup.borg,first['archive'],path,picked)
+  for p in [out,*out.rglob('*')]:
+   rel=str(p.relative_to(picked/first['archive']));assert manifest(picked/first['archive']).get(rel)==expected[rel],rel
+ assert sorted(os.listdir(picked/first['archive']))==['app','line\nbreak','sh:*']
+ try:browse.restore(c,backup.borg,first['archive'],'app',picked);raise AssertionError('overwrote')
+ except ValueError:pass
+ # The same flow through the CLI, as the panel will call it.
+ def cli(*args):
+  out=io.StringIO()
+  with patch.object(backup,'config',return_value=c),patch.object(sys,'argv',['omahottub',*args,'--json']),contextlib.redirect_stdout(out):backup.main()
+  return json.loads(out.getvalue())
+ assert cli('archives')['archives'][0]['name']==second['archive']
+ assert [x['name'] for x in cli('ls','--archive',second['archive'],'--path','app')['entries']]==['IndexedDB']
+ with patch.object(backup.browse,'build_index',side_effect=AssertionError('indexed archive contacted Borg')):cli('ls','--archive',second['archive'])
+ with patch.object(browse,'RESTORED',root/'cli-restored'):done=cli('restore','--archive',second['archive'],'--path','file')
+ assert (root/'cli-restored'/second['archive']/'file').read_bytes()==(source/'file').read_bytes()==Path(done['restored']).read_bytes()
+ print(json.dumps({'initial_backup':True,'unchanged_new_data_bytes':second['stats']['deduplicated_size'],'fresh_cache_full_restore':True,'hashes_modes_xattrs_links_match':True,'sqlite_integrity':True,'full_data_check':True,'restore_browser_index':True,'partial_restore_literal_names':True,'no_overwrite':True}))

@@ -6,8 +6,8 @@ two fixed user units. No server commands, paths or units come from UI text.
 
 The optional runner runs as the user. It uses argument arrays, a private
 password file, pinned host keys, a dedicated SSH identity, process-group cleanup,
-and a nonblocking operation lock. Private logs, manifests and restore copies
-are not release artifacts. Never attach them to public issues without review.
+and a nonblocking operation lock. Private logs, manifests, restore-browser
+indexes (file names, sizes and times) and restore copies are not release artifacts. Never attach them to public issues without review.
 
 The only root helper has fixed source/target paths and three exact actions. It
 checks ownership/modes, identifies the /home subvolume, creates read-only

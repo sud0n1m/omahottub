@@ -10,7 +10,9 @@ repository copy before destructive recovery procedures.
 To inspect history, use the configured Borg 1.4 client with the same pinned SSH
 transport and private password handling. The runner's private `last-success.json`
 records its most recent archive. Restore into a new directory with
-`omahottub restore --archive NAME --destination NEW_DIRECTORY`.
+`omahottub restore --archive NAME --destination NEW_DIRECTORY`, or bring back
+one file or folder with `omahottub restore --archive NAME --path PATH`, which
+writes to `~/Restored/NAME/PATH` and refuses to overwrite.
 Do not overlay a live home. Verify hashes and permissions, and open restored
 application databases using their native tools. A generic SQLite integrity check
 may require app-specific functions/extensions. Restore only copies, never run

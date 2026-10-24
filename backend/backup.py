@@ -5,6 +5,7 @@ from datetime import datetime,timedelta,timezone
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from common import CONFIG,STATE,config,read,write
+import browse
 HELPER='/usr/local/libexec/omarchy-backup/snapshot'
 
 def now():return datetime.now().astimezone().isoformat()
@@ -36,7 +37,7 @@ def environment(c):
 def emit(state,reason,c,**extra):
     write(STATE/'status.json',dict(state=state,reason=reason,time=now(),profile=c['profile'],**extra))
 
-def borg(c,args,label,cwd=None):
+def borg(c,args,label,cwd=None,output=True):
     env=environment(c)
     with (STATE/(label+'.stdout')).open('wb') as out,(STATE/(label+'.stderr')).open('wb') as err:
         result=subprocess.Popen([c['borg'],*args],cwd=cwd,env=env,stdout=out,stderr=err,start_new_session=True)
@@ -49,7 +50,8 @@ def borg(c,args,label,cwd=None):
                     os.killpg(result.pid,signal.SIGKILL);result.wait(timeout=10)
             raise
     if result.returncode:raise RuntimeError('Borg '+label+' returned '+str(result.returncode)+'; inspect private '+label+'.stderr')
-    return (STATE/(label+'.stdout')).read_text()
+    # Large listings are streamed from the private stdout file instead of loaded.
+    return (STATE/(label+'.stdout')).read_text() if output else STATE/(label+'.stdout')
 
 def snapshot(action):
     return subprocess.check_output(['/usr/bin/sudo','-n',HELPER,action],text=True,timeout=60).strip()
@@ -88,9 +90,11 @@ def capture(c,source,name):
 
 def main():
     os.umask(0o077)
-    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['doctor','init','run','check','restore','export-key']);parser.add_argument('--archive');parser.add_argument('--destination',type=Path);a=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['doctor','init','run','check','restore','export-key','archives','ls']);parser.add_argument('--archive');parser.add_argument('--path');parser.add_argument('--destination',type=Path);parser.add_argument('--json',action='store_true');a=parser.parse_args()
     STATE.mkdir(parents=True,exist_ok=True,mode=0o700)
     c=config()
+    # Browsing an already-indexed archive is local: no lock, NAS or Borg needed.
+    if a.action=='ls' and browse.indexed(browse.archive_name(a.archive)):return show(browse.listing(a.archive,a.path or ''),a.json)
     with (STATE/'runner.lock').open('a') as lock:
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:raise SystemExit('Another backup operation is active')
@@ -113,6 +117,13 @@ def main():
             elif a.action=='export-key':
                 if not a.destination or a.destination.exists():raise ValueError('Choose a new destination for the encrypted key export')
                 borg(c,['key','export',c['repository'],str(a.destination.absolute())],'export-key');print('Exported encrypted key. Store it and the password off this machine.')
+            elif a.action=='archives':show({'archives':browse.archives(c,borg)},a.json)
+            elif a.action=='ls':
+                browse.build_index(c,borg,browse.archive_name(a.archive));show(browse.listing(a.archive,a.path or ''),a.json)
+            elif a.action=='restore' and a.path is not None:
+                if a.destination:raise ValueError('Partial restores always go to ~/Restored/ARCHIVE; omit --destination')
+                if not browse.indexed(browse.archive_name(a.archive)):browse.build_index(c,borg,a.archive)
+                show({'restored':str(browse.restore(c,borg,a.archive,a.path))},a.json)
             elif a.action=='restore':
                 if not a.archive or not re.fullmatch(r'home-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{8}',a.archive):raise ValueError('Select an exact archive name from last-success.json or Borg list')
                 if not a.destination or a.destination.exists():raise ValueError('Restore requires a new, nonexistent directory')
@@ -122,4 +133,17 @@ def main():
         except BaseException:
             if a.action in ['run','check']:emit('failed','operation failed; inspect private runner logs',c)
             raise
-if __name__=='__main__':main()
+def show(value,as_json):
+    if as_json:print(json.dumps(value));return
+    if 'archives' in value:
+        for x in value['archives']:print(x['time'][:16].replace('T',' '),x['name'])
+    elif 'entries' in value:
+        for x in value['entries']:print(('%12s '%('-' if x['type']=='d' else x['size']))+x['name']+('/' if x['type']=='d' else ''))
+    else:print('Restored to '+value['restored']+'. Nothing in your home folder was changed.')
+
+if __name__=='__main__':
+    try:main()
+    except (ValueError,RuntimeError,OSError,SystemExit) as e:
+        # The panel reads one JSON object either way; a traceback stays a CLI-only detail.
+        if '--json' not in sys.argv or (isinstance(e,SystemExit) and not isinstance(e.code,str)):raise
+        print(json.dumps({'error':str(e.code if isinstance(e,SystemExit) else e)}));sys.exit(1)
