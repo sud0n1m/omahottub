@@ -99,7 +99,8 @@ def main():
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         except BlockingIOError:raise SystemExit('Another backup operation is active')
         version=subprocess.check_output([c['borg'],'--version'],text=True,timeout=10)
-        if not re.match(r'borg 1\.4\.',version):raise SystemExit('This alpha requires Borg 1.4.x')
+        # The first word is the executable's own name, e.g. 'borg-1.4.5 1.4.5' for a pinned download.
+        if not re.fullmatch(r'\S+ 1\.4\.\d+\s*',version):raise SystemExit('This alpha requires Borg 1.4.x')
         def stop(signum,frame):raise InterruptedError('Backup operation interrupted')
         signal.signal(signal.SIGTERM,stop)
         try:

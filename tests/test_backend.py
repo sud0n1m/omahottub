@@ -63,6 +63,10 @@ class Backend(unittest.TestCase):
    with patch.dict(os.environ,{'BORG_PASSPHRASE':'fixture','BORG_RELOCATED_REPO_ACCESS_IS_OK':'yes'}):
     env=backup.environment(c)
    self.assertNotIn('BORG_PASSPHRASE',env);self.assertNotIn('BORG_RELOCATED_REPO_ACCESS_IS_OK',env)
+ def test_version_check_ignores_executable_name(self):
+  for output,ok in [('borg 1.4.5\n',True),('borg-test 1.4.5\n',True),('borg 1.2.8\n',False),('borg 2.0.0b14\n',False),('borg-1.4 2.0.0\n',False)]:
+   with tempfile.TemporaryDirectory() as d,patch.object(backup,'STATE',Path(d)),patch.object(backup,'config',return_value={'borg':'/fixture/borg'}),patch.object(backup.subprocess,'check_output',return_value=output),patch.object(backup,'environment',side_effect=RuntimeError('reached')),patch.object(sys,'argv',['omahottub','doctor']):
+    with self.assertRaises(RuntimeError if ok else SystemExit):backup.main()
  def test_invalid_prefix_refused(self):
   with tempfile.TemporaryDirectory() as d:
    p=Path(d)/'config';p.write_text(json.dumps({'backend':'borg','repository':'ssh://test@example.invalid/repo','ssh_key':'/fixture/key','known_hosts':'/fixture/hosts','password_file':'/fixture/password','borg':'/usr/bin/true','exclude_prefixes':['../secret']}))
