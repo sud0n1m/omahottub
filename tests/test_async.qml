@@ -3,6 +3,8 @@ import Quickshell
 import Quickshell.Io
 ShellRoot {
   id: test
+  // Load like the shell's PluginRegistry: a file:// URL, so sibling types resolve.
+  readonly property string plugin: "file://" + Quickshell.env("BACKUP_QML_PLUGIN")
   property var service: null
   property var panel: null
   property int step: 0
@@ -13,10 +15,10 @@ ShellRoot {
   function check(ok, message) { if (!ok) { failed = true; console.error("TEST_FAILED", step, message); Qt.quit() } }
   function setFixture(value) { fixture.setText(JSON.stringify(value)) }
   Component.onCompleted: {
-    var c = Qt.createComponent(Qt.resolvedUrl("Plugin/Service.qml"))
+    var c = Qt.createComponent(test.plugin + "/Service.qml")
     if (c.status !== Component.Ready) { console.error("SERVICE_ERROR", c.errorString()); Qt.quit(); return }
     service = c.createObject(test)
-    c = Qt.createComponent(Qt.resolvedUrl("Plugin/Panel.qml"))
+    c = Qt.createComponent(test.plugin + "/Panel.qml")
     if (c.status !== Component.Ready) { console.error("PANEL_ERROR", c.errorString()); Qt.quit(); return }
     panel = c.createObject(test)
     if (service && panel) console.log("BACKUP_QML_COMPONENTS_READY")

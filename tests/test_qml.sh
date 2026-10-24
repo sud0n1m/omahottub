@@ -29,7 +29,7 @@ printf '%s\n' '{"state":"due","canStart":true,"serviceRunning":false,"managerAva
 cp "$here/test_async.qml" "$scratch/qs/shell.qml"
 log="$scratch/quickshell.log"
 calls="$scratch/systemctl-calls"
-BACKUP_QML_TEST_CALLS="$calls" BACKUP_QML_TEST_STATE="$scratch/state.json" PATH="$scratch/bin" \
+BACKUP_QML_PLUGIN="$(cd "$here/.." && pwd)" BACKUP_QML_TEST_CALLS="$calls" BACKUP_QML_TEST_STATE="$scratch/state.json" PATH="$scratch/bin" \
   WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}" QT_QPA_PLATFORM=wayland \
   /usr/bin/timeout 30s /usr/bin/quickshell -p "$scratch/qs/shell.qml" --no-color >"$log" 2>&1
 if ! rg -q 'BACKUP_ASYNC_GUARDS_READY' "$log" || ! rg -q 'BACKUP_QML_COMPONENTS_READY' "$log" \

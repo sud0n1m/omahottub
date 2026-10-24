@@ -9,9 +9,12 @@ Panel {
   moduleName: "sudonim.xps-backup"
   ipcTarget: "sudonim.xps-backup"
   property bool details: false
+  property bool browsing: false
   property int selection: 0
   readonly property var backup: bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
   readonly property var info: backup ? backup.status : ({})
+  readonly property bool canBrowse: info.backend === "borg" && !!backup && !!backup.restore
+  readonly property int actionCount: canBrowse ? 3 : 2
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
   readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
   readonly property color bright: "#c0caf5"
@@ -37,6 +40,11 @@ Panel {
     : info.canStart ? "Retry when ready. Requires power and NAS access."
     : info.actionHint || "Waiting for an eligible backup check."
   onDetailsChanged: { scroll.contentY = 0; Qt.callLater(function() { keys.forceActiveFocus() }) }
+  onBrowsingChanged: {
+    scroll.contentY = 0
+    if (browsing) { restoreView.reset(); backup.restore.open() }
+    Qt.callLater(function() { if (browsing) restoreView.forceActiveFocus(); else keys.forceActiveFocus() })
+  }
   component InfoRow: Row {
     property string label: ""
     property string value: ""
@@ -52,7 +60,7 @@ Panel {
   onOpenedChanged: {
     if (backup) backup.panelOpen = opened
     if (opened) {
-      details = false; selection = 0
+      details = false; browsing = false; selection = 0
       if (backup) backup.refresh()
       Qt.callLater(function() { keys.forceActiveFocus() })
     }
@@ -61,6 +69,7 @@ Panel {
   function activate() {
     if (details) { details = false; return }
     if (selection === 0) { if (backup && backup.canRequest) backup.requestDueCheck() }
+    else if (selection === 2 && canBrowse) browsing = true
     else details = true
   }
 
@@ -130,16 +139,17 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keys
-    contentWidth: panel.fittedContentWidth(root.details ? 440 : 400)
+    contentWidth: panel.fittedContentWidth(root.browsing ? 520 : root.details ? 440 : 400)
     contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(680))
     PanelKeyCatcher {
       id: keys
       anchors.fill: parent
+      blocked: root.browsing
       onCloseRequested: if (root.details) root.details = false; else root.close()
-      onTabRequested: function(direction) { if (!root.details) root.selection = (root.selection + direction + 2) % 2 }
+      onTabRequested: function(direction) { if (!root.details) root.selection = (root.selection + direction + root.actionCount) % root.actionCount }
       onMoveRequested: function(dx, dy) {
         if (root.details) scroll.contentY = Math.max(0, Math.min(scroll.contentHeight - scroll.height, scroll.contentY + dy * 48))
-        else root.selection = Math.max(0, Math.min(1, root.selection + dy))
+        else root.selection = Math.max(0, Math.min(root.actionCount - 1, root.selection + dy))
       }
       onActivateRequested: root.activate()
       Flickable {
@@ -157,7 +167,7 @@ Panel {
           Text { text: "Omahottub"; color: root.bright; font.family: root.fontFamily; font.pixelSize: 14; font.bold: true }
           Text { text: root.info.backend === "borg" ? "Home snapshot → backup repository" : "Selected files → Synology"; color: root.fg; font.family: root.fontFamily; font.pixelSize: 12 }
           Column {
-            visible: !root.details
+            visible: !root.details && !root.browsing
             width: parent.width
             spacing: 12
             Item { width: 1; height: 6 }
@@ -191,6 +201,24 @@ Panel {
               background: Rectangle { color: "transparent"; border.color: detailsButton.activeFocus || (root.selection === 1 && keys.activeFocus) ? root.accent : "transparent"; border.width: 2 }
               contentItem: Text { text: detailsButton.text; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter; color: root.accent; font.family: root.fontFamily; font.pixelSize: 12 }
             }
+            Controls.Button {
+              id: restoreButton
+              objectName: "restoreFiles"
+              visible: root.canBrowse
+              width: parent.width; height: 32
+              text: "Restore files →"
+              onClicked: root.browsing = true
+              background: Rectangle { color: "transparent"; border.color: restoreButton.activeFocus || (root.selection === 2 && keys.activeFocus) ? root.accent : "transparent"; border.width: 2 }
+              contentItem: Text { text: restoreButton.text; horizontalAlignment: Text.AlignLeft; verticalAlignment: Text.AlignVCenter; color: root.accent; font.family: root.fontFamily; font.pixelSize: 12 }
+            }
+          }
+          RestoreView {
+            id: restoreView
+            visible: root.browsing
+            width: parent.width
+            model: root.backup ? root.backup.restore : null
+            fontFamily: root.fontFamily; fg: root.fg; bright: root.bright; accent: root.accent; red: root.red
+            onBack: root.browsing = false
           }
           Column {
             visible: root.details

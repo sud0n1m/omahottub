@@ -79,6 +79,28 @@ omahottub export-key --destination /a/new/private/key-export
 omahottub restore --archive home-YYYYMMDDTHHMMSSZ-1234abcd --destination /a/new/restore
 ```
 
+### Getting a file or folder back
+
+With the Borg backend, the panel shows **Restore files →**. Pick a day with
+‹ › (Ctrl+←/→), browse with the arrow keys and Enter, and type to filter. Enter on
+a file restores it; Tab reaches **Restore this folder**. Switching days keeps
+you in the same folder, or the nearest one that existed then. A notification
+offers **Show in Files** when a restore finishes. The same steps from a terminal:
+
+```sh
+omahottub archives                                   # newest first
+omahottub ls --archive home-YYYYMMDDTHHMMSSZ-1234abcd --path Projects
+omahottub restore --archive home-YYYYMMDDTHHMMSSZ-1234abcd --path Projects/app
+```
+
+The first `ls` of an archive builds a local index from Borg's listing; later
+folders open without contacting the NAS. Indexes for the five newest browsed
+archives are kept in private state (about 70 MB per million files) and are
+excluded from backup. Partial restores land in `~/Restored/ARCHIVE/PATH`, never
+on top of your current files. A path that was already restored there is refused,
+not overwritten; move it away first. Paths are matched literally, so names such
+as `sh:*` restore only themselves. Add `--json` for machine-readable output.
+
 `check` is deliberately separate from backup. This alpha has no automatic
 verification schedule; arrange periodic checks and restore drills yourself.
 A successful extract does not automatically claim application or full restore
@@ -94,6 +116,7 @@ Manual commands and the timer share a nonblocking lock.
 python3 -m unittest discover -s tests -p 'test_*.py'
 BORG_TEST_BINARY=/usr/bin/borg python3 tests/integration_borg.py
 bash tests/test_qml.sh  # Omarchy + Quickshell + active Wayland session
+bash tests/test_restore.sh  # restore browser against a fake CLI; offscreen
 omarchy plugin validate .
 ```
 

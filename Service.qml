@@ -28,6 +28,7 @@ Item {
   property bool statusTimedOut: false
   property bool startTimedOut: false
   property string commandMessage: ""
+  property alias restore: restoreModel
   readonly property string helperPath: decodeURIComponent(String(Qt.resolvedUrl("status.py")).replace(/^file:\/\//, ""))
 
   function refresh() {
@@ -142,6 +143,7 @@ Item {
       root.refresh()
     }
   }
+  RestoreModel { id: restoreModel }
   IpcHandler {
     target: "xps-backup"
     function status(): string { return JSON.stringify(root.status) }
