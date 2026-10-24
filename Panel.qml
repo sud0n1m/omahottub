@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls as Controls
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -12,7 +13,7 @@ Panel {
   readonly property var backup: bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
   readonly property var info: backup ? backup.status : ({})
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
-  readonly property color fg: bar ? bar.foreground : Color.foreground
+  readonly property color fg: bar ? bar.foreground : Commons.Color.foreground
   readonly property color bright: "#c0caf5"
   readonly property color accent: "#7aa2f7"
   readonly property color green: "#9ece6a"
