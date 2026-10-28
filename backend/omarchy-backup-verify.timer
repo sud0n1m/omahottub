@@ -1,0 +1,8 @@
+[Unit]
+Description=Run the Omahottub data check when due (daily eligibility, monthly work)
+[Timer]
+OnCalendar=*-*-* 19:30
+Persistent=true
+Unit=omarchy-backup-verify.service
+[Install]
+WantedBy=timers.target

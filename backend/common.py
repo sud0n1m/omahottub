@@ -23,6 +23,8 @@ def config(path=CONFIG):
     if not isinstance(repo,str) or not repo.startswith('ssh://') or any(x in repo for x in ['\n','\r','\0','::']):raise ValueError('repository must be an ssh:// Borg URL')
     if type(c.get('due_hour',18)) is not int or not 0<=c.get('due_hour',18)<=23:raise ValueError('due_hour must be 0..23')
     if type(c.get('require_ac',True)) is not bool:raise ValueError('require_ac must be boolean')
+    for key,low,high in [('stale_hours',12,24*14),('verify_days',1,365)]:
+        if key in c and (type(c[key]) is not int or not low<=c[key]<=high):raise ValueError(key+' must be an integer from %d to %d'%(low,high))
     for key in ['ssh_key','known_hosts','password_file']:
         if not isinstance(c.get(key),str) or not c[key]:raise ValueError('Missing '+key)
         c[key]=str(Path(c[key]).expanduser().absolute())

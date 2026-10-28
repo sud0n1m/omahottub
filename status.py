@@ -258,7 +258,9 @@ def borg_view(current, receipt, check, c, service, timer, now):
     if type(new_bytes) is not int or new_bytes < 0: new_bytes = None
     checked = check if isinstance(check, dict) and check.get('profile') == c['profile'] else {}
     checked_at = parse_time(checked.get('finished'))
-    passed = bool(saved_at and checked_at and saved_at <= checked_at <= now)
+    # The data check and restore drill run monthly, so a recent pass covers the daily backups after it.
+    passed = bool(checked_at and checked_at <= now and now - checked_at <= timedelta(days=c.get('verify_days', 30) + 5))
+    drill = checked.get('drill') if isinstance(checked.get('drill'), dict) else {}
     current = current if isinstance(current, dict) and current.get('profile') == c['profile'] else {}
     service = service or {}; timer = timer or {}
     running = service.get('ActiveState') in ('active','activating','deactivating')
@@ -268,7 +270,7 @@ def borg_view(current, receipt, check, c, service, timer, now):
     slot = now.replace(hour=c.get('due_hour',18),minute=0,second=0,microsecond=0)
     if now < slot: slot -= timedelta(days=1)
     next_dt = next_check(timer, now) if enabled else None
-    phases = {'snapshot':'Freezing files','backup':'Saving changed data','verify':'Checking repository'}
+    phases = {'snapshot':'Freezing files','backup':'Saving changed data','verify':'Checking repository','drill':'Restore drill'}
     state = 'due' if is_due else 'complete'
     headline = 'Backup due' if is_due else 'Backup complete'
     reason = 'A backup is due. Requires configured power and repository access.' if is_due else 'Your daily backup is saved. The next check runs automatically.'
@@ -290,9 +292,10 @@ def borg_view(current, receipt, check, c, service, timer, now):
         dueLabel='Backup due since' if is_due else 'Next backup due',
         dueValue=stamp((slot if is_due else slot+timedelta(days=1)).isoformat(),now),
         nextCheck=stamp(next_dt.isoformat(),now) if next_dt else 'Unavailable',
-        checksPassed=passed,verificationSummary='✓ Repository data check passed' if passed else 'Repository check not recorded for this backup',
-        verificationTime=stamp(checked.get('finished'),now) if passed else 'Verification is separate from backup',
-        verificationTimeAbsolute=absolute(checked.get('finished'),now) if passed else 'Run a full repository check after backup',
+        checksPassed=passed,verificationSummary=('✓ Data check and restore drill passed' if drill else '✓ Repository data check passed') if passed
+            else 'Monthly data check overdue' if checked_at else 'Monthly data check not run yet',
+        verificationTime=stamp(checked.get('finished'),now) if passed else 'Runs monthly after a backup, on AC power',
+        verificationTimeAbsolute=absolute(checked.get('finished'),now) if checked_at else 'Not yet run',
         canStart=bool(service) and enabled and is_due and not running,serviceRunning=running,managerAvailable=bool(service),
         timerState='Active' if enabled else 'Disabled or inactive',lastAttempt=stamp(current.get('time'),now),
         lastAttemptAbsolute=absolute(current.get('time'),now),lastCheckTime=current.get('time',''),

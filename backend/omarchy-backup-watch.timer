@@ -1,0 +1,9 @@
+[Unit]
+Description=Check Omahottub backup health hourly
+[Timer]
+OnStartupSec=15min
+OnCalendar=*:45
+Persistent=true
+Unit=omarchy-backup-watch.service
+[Install]
+WantedBy=timers.target

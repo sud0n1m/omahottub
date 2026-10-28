@@ -1,0 +1,6 @@
+[Unit]
+Description=Omahottub backup alerts — notify about failed, stopped or unchecked backups
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-backup watch
+UMask=0077

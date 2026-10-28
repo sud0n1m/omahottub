@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Add `watch`: critical desktop notifications for failed backups or checks,
+  backups stopped for 36 hours, pending snapshot cleanup and an overdue monthly
+  check, with per-problem repeat limits. Runs hourly and on unit failure.
+- Add `verify`: a monthly, AC-gated repository data check followed by a restore
+  drill that compares 25 random files with unchanged live copies.
+- The panel counts a passing monthly check for the backups after it, instead of
+  only for the archive made before it.
 - Add `archives`, `ls` and `restore --path` for browsing a backup and restoring
   a single file or folder into `~/Restored/ARCHIVE/`, never over live files.
 - Add a keyboard-first **Restore files** view to the panel: day picker, folder

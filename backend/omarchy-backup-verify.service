@@ -1,0 +1,12 @@
+[Unit]
+Description=Omahottub monthly repository data check and restore drill
+OnFailure=omarchy-backup-watch.service
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/omarchy-backup verify
+TimeoutStartSec=5h
+TimeoutStopSec=90s
+KillMode=control-group
+UMask=0077
+Nice=10
+IOSchedulingClass=idle

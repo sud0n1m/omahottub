@@ -75,6 +75,8 @@ foreign ownership to the restoring user; Borg retains original IDs in metadata.
 omahottub doctor
 omahottub run                 # only if daily slot is due and eligible
 omahottub check               # explicit full repository data check
+omahottub verify              # monthly data check + restore drill, only when due
+omahottub watch               # notify about failed, stopped or unchecked backups
 omahottub export-key --destination /a/new/private/key-export
 omahottub restore --archive home-YYYYMMDDTHHMMSSZ-1234abcd --destination /a/new/restore
 ```
@@ -102,8 +104,22 @@ on top of your current files. A path that was already restored there is refused,
 not overwritten; move it away first. Paths are matched literally, so names such
 as `sh:*` restore only themselves. Add `--json` for machine-readable output.
 
-`check` is deliberately separate from backup. This alpha has no automatic
-verification schedule; arrange periodic checks and restore drills yourself.
+`check` is deliberately separate from backup. `verify` is the scheduled form:
+once every `verify_days` (default 30), on AC power, it runs the full repository
+data check and then a restore drill. The drill extracts 25 random files of up to
+50 MB from the newest archive and compares them byte-for-byte with live files
+that have not changed since that backup. Any missing or mismatched file fails it.
+
+`watch` sends a critical desktop notification when a backup or check fails, when
+nothing has been saved for `stale_hours` (default 36), when a snapshot needs
+cleanup, or when the monthly check is two weeks overdue. Each problem notifies
+once and then at most every 12 hours (weekly for the overdue check) while it
+lasts; once it clears, the next occurrence notifies immediately. It reads only
+local state, so it works offline. The backup and verify units also run it on failure.
+
+```sh
+systemctl --user enable --now omarchy-backup-watch.timer omarchy-backup-verify.timer
+```
 A successful extract does not automatically claim application or full restore
 verification. The panel never promotes experiment results to production evidence.
 Manual commands and the timer share a nonblocking lock.

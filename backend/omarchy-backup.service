@@ -1,5 +1,6 @@
 [Unit]
 Description=Omarchy Backup alpha — Btrfs snapshot to Borg
+OnFailure=omarchy-backup-watch.service
 [Service]
 Type=oneshot
 ExecStart=%h/.local/bin/omarchy-backup run

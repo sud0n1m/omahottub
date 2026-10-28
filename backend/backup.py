@@ -5,7 +5,7 @@ from datetime import datetime,timedelta,timezone
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
 from common import CONFIG,STATE,config,read,write
-import browse
+import browse,watch
 HELPER='/usr/local/libexec/omarchy-backup/snapshot'
 
 def now():return datetime.now().astimezone().isoformat()
@@ -90,14 +90,20 @@ def capture(c,source,name):
 
 def main():
     os.umask(0o077)
-    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['doctor','init','run','check','restore','export-key','archives','ls']);parser.add_argument('--archive');parser.add_argument('--path');parser.add_argument('--destination',type=Path);parser.add_argument('--json',action='store_true');a=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['doctor','init','run','check','verify','watch','restore','export-key','archives','ls']);parser.add_argument('--archive');parser.add_argument('--path');parser.add_argument('--destination',type=Path);parser.add_argument('--json',action='store_true');a=parser.parse_args()
     STATE.mkdir(parents=True,exist_ok=True,mode=0o700)
     c=config()
     # Browsing an already-indexed archive is local: no lock, NAS or Borg needed.
     if a.action=='ls' and browse.indexed(browse.archive_name(a.archive)):return show(browse.listing(a.archive,a.path or ''),a.json)
+    if a.action=='watch':print('Problems: '+(', '.join(watch.watch(c)) or 'none'));return
+    if a.action=='verify' and not watch.verify_due(c):print('Monthly check not due');return
+    if a.action=='verify' and c.get('require_ac',True) and not ac_online():print('Monthly check waits for AC power');return
     with (STATE/'runner.lock').open('a') as lock:
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except BlockingIOError:raise SystemExit('Another backup operation is active')
+        except BlockingIOError:
+            # A scheduled check simply waits for tomorrow rather than reporting a failure.
+            if a.action=='verify':print('A backup is running; the monthly check will retry');return
+            raise SystemExit('Another backup operation is active')
         version=subprocess.check_output([c['borg'],'--version'],text=True,timeout=10)
         # The first word is the executable's own name, e.g. 'borg-1.4.5 1.4.5' for a pinned download.
         if not re.fullmatch(r'\S+ 1\.4\.\d+\s*',version):raise SystemExit('This alpha requires Borg 1.4.x')
@@ -115,6 +121,11 @@ def main():
             elif a.action=='check':
                 emit('running','verify',c);borg(c,['check','--verify-data','--lock-wait','30',c['repository']],'check')
                 write(STATE/'last-check.json',{'finished':now(),'profile':c['profile']});emit('success','verified',c)
+            elif a.action=='verify':
+                emit('running','verify',c);borg(c,['check','--verify-data','--lock-wait','30',c['repository']],'check')
+                emit('running','drill',c);result=watch.drill(c,borg)
+                write(STATE/'last-check.json',{'finished':now(),'profile':c['profile'],'drill':result});emit('success','verified',c)
+                print('Repository data check passed; restore drill compared %(compared)d of %(sampled)d sampled files with 0 mismatches.'%result)
             elif a.action=='export-key':
                 if not a.destination or a.destination.exists():raise ValueError('Choose a new destination for the encrypted key export')
                 borg(c,['key','export',c['repository'],str(a.destination.absolute())],'export-key');print('Exported encrypted key. Store it and the password off this machine.')
@@ -132,7 +143,7 @@ def main():
                 borg(c,['extract',c['repository']+'::'+a.archive],'restore',a.destination.absolute())
                 print('Extracted. Verify files and application recovery before using them; foreign ownership may map to your user.')
         except BaseException:
-            if a.action in ['run','check']:emit('failed','operation failed; inspect private runner logs',c)
+            if a.action in ['run','check','verify']:emit('failed','operation failed; inspect private runner logs',c)
             raise
 def show(value,as_json):
     if as_json:print(json.dumps(value));return
