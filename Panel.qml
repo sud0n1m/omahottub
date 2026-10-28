@@ -235,6 +235,8 @@ Panel {
             DetailText { text: root.info.verificationTimeAbsolute || (root.info.checksPassed ? root.info.lastSuccessAbsolute || "Time unknown" : "No verified receipt") }
             DetailText { text: "Full restore: not recorded\nOff-site recovery: not verified" }
             Rectangle { width: parent.width; height: 1; color: "#414868" }
+            DetailText { visible: !!root.info.destinations; text: "LAST SAVED BY DESTINATION"; font.bold: true }
+            DetailText { visible: !!root.info.destinations; text: root.info.destinations || "" }
             DetailText { text: "COVERAGE"; font.bold: true }
             DetailText { text: root.info.backend === "borg" ? "Home files from a frozen filesystem snapshot, including databases and journals. Configured caches are excluded. Application consistency and full-system recovery are not guaranteed." : "Selected home files and Git work → Synology. Live databases, caches and system recovery data are excluded. This is not a full-system backup." }
             DetailText { text: "RETENTION"; font.bold: true }

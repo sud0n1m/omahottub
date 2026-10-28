@@ -81,6 +81,29 @@ omahottub export-key --destination /a/new/private/key-export
 omahottub restore --archive home-YYYYMMDDTHHMMSSZ-1234abcd --destination /a/new/restore
 ```
 
+### More than one destination
+
+The top-level repository is the primary destination (`nas` unless `name` is set).
+Add others, for example an off-site Borg host, under `destinations`:
+
+```json
+"destinations": [
+  {"name": "offsite", "repository": "ssh://user@host.example/./repo",
+   "ssh_key": "~/.ssh/omahottub-offsite", "known_hosts": "~/.config/omarchy-backup/known_hosts-offsite",
+   "verify_days": 90}
+]
+```
+
+Each run takes one snapshot and saves the same archive to every destination that
+is due. A destination that cannot be reached, for example the home NAS while
+travelling, is skipped instead of failing. If one destination fails, the others
+still run, and the failure alert names it. `password_file` defaults to the
+primary's. `verify` checks each destination on its own schedule (off-site default:
+every 90 days, since a full check downloads the repository). `watch` reports
+"stopped" only when no destination has saved for `stale_hours`, and separately
+when one destination is more than 8 days behind. The restore browser and
+`restore` use the primary repository.
+
 ### Getting a file or folder back
 
 With the Borg backend, the panel shows **Restore files →**. Pick a day with

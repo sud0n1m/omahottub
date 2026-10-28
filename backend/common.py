@@ -1,5 +1,5 @@
 """Configuration and scope shared by the unprivileged alpha runner."""
-import hashlib,json,os,shutil,stat
+import hashlib,json,os,re,shutil,stat
 from pathlib import Path
 CONFIG=Path.home()/'.config/omarchy-backup/config.json'
 STATE=Path.home()/'.local/state/omarchy-backup'
@@ -34,8 +34,33 @@ def config(path=CONFIG):
         values=c.get(key,default)
         if not isinstance(values,list) or any(not isinstance(x,str) or not x or '\x00' in x or '\n' in x or Path(x).is_absolute() or '..' in Path(x).parts or (key=='exclude_directories' and '/' in x) for x in values):raise ValueError('Invalid '+key)
         c[key]=list(dict.fromkeys(default+values))
-    c['profile']=hashlib.sha256(json.dumps({k:c[k] for k in ['repository','exclude_prefixes','exclude_directories']},sort_keys=True).encode()).hexdigest()
+    c['profile']=profile(c,c['repository'])
+    c['targets']=targets(c)
     return c
+
+def profile(c,repository):
+    return hashlib.sha256(json.dumps(dict(repository=repository,exclude_prefixes=c['exclude_prefixes'],exclude_directories=c['exclude_directories']),sort_keys=True).encode()).hexdigest()
+
+def targets(c):
+    """The primary repository plus optional extra destinations, each with its own receipts."""
+    out=[dict(c,name=c.get('name','nas'),receipt='last-success.json',check='last-check.json',label='',verify_days=c.get('verify_days',30))]
+    extra=c.get('destinations',[])
+    if not isinstance(extra,list):raise ValueError('destinations must be a list')
+    for d in extra:
+        if not isinstance(d,dict) or not isinstance(d.get('name'),str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,30}',d['name']):raise ValueError('Each destination needs a short lowercase name')
+        if d['name'] in [t['name'] for t in out]:raise ValueError('Duplicate destination '+d['name'])
+        repo=d.get('repository','')
+        if not isinstance(repo,str) or not repo.startswith('ssh://') or any(x in repo for x in ['\n','\r','\0','::']):raise ValueError(d['name']+': repository must be an ssh:// Borg URL')
+        t=dict(c,name=d['name'],repository=repo,receipt='last-success.'+d['name']+'.json',check='last-check.'+d['name']+'.json',label='-'+d['name'])
+        for key in ['ssh_key','known_hosts','password_file']:
+            value=d.get(key,c[key] if key=='password_file' else None)
+            if not isinstance(value,str) or not value:raise ValueError(d['name']+': missing '+key)
+            t[key]=str(Path(value).expanduser().absolute())
+        for key,default,low,high in [('verify_days',90,1,365)]:
+            t[key]=d.get(key,default)
+            if type(t[key]) is not int or not low<=t[key]<=high:raise ValueError(d['name']+': '+key+' must be an integer from %d to %d'%(low,high))
+        t['profile']=profile(c,repo);t.pop('destinations',None);out.append(t)
+    return out
 
 def selected(root,c):
     root=Path(root);device=root.stat().st_dev

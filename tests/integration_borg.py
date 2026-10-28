@@ -62,13 +62,19 @@ with tempfile.TemporaryDirectory(prefix='omarchy-backup-integration-') as tmp:
  with patch.object(browse,'RESTORED',root/'cli-restored'):done=cli('restore','--archive',second['archive'],'--path','file')
  # Monthly check: real data verification, then a restore drill compared with the unchanged source.
  drilled=watch.drill(c,backup.borg,source);assert drilled['archive']==second['archive'] and drilled['compared']==drilled['sampled']>0 and drilled['mismatches']==0,drilled
+ # A second destination receives the same archive and is verified independently.
+ off=dict(c,name='offsite',repository=str(root/'repository-offsite'),profile='fixture-offsite',receipt='last-success.offsite.json',check='last-check.offsite.json',label='-offsite',verify_days=90)
+ backup.borg(off,['init','--encryption=repokey',off['repository']],'init')
+ backup.capture(off,source,second['archive'])
+ c['targets']=[dict(c,name='nas',receipt='last-success.json',check='last-check.json',label='',verify_days=30),off]
  with patch.object(backup,'ac_online',return_value=True):
   out=io.StringIO()
   with patch.object(backup,'config',return_value=c),patch.object(sys,'argv',['omahottub','verify']),contextlib.redirect_stdout(out):backup.main()
-  assert 'restore drill compared' in out.getvalue(),out.getvalue()
+  assert out.getvalue().count('restore drill compared')==2 and 'offsite: data check passed' in out.getvalue(),out.getvalue()
+  assert (backup.STATE/'last-check.offsite.json').exists() and json.loads((backup.STATE/'last-success.offsite.json').read_text())['archive']==second['archive']
   out=io.StringIO()
   with patch.object(backup,'config',return_value=c),patch.object(sys,'argv',['omahottub','verify']),contextlib.redirect_stdout(out):backup.main()
   assert out.getvalue().strip()=='Monthly check not due',out.getvalue()
  assert watch.watch(c,notify=lambda t,b:None)==[],'healthy repository should raise no alerts'
  assert (root/'cli-restored'/second['archive']/'file').read_bytes()==(source/'file').read_bytes()==Path(done['restored']).read_bytes()
- print(json.dumps({'initial_backup':True,'unchanged_new_data_bytes':second['stats']['deduplicated_size'],'fresh_cache_full_restore':True,'hashes_modes_xattrs_links_match':True,'sqlite_integrity':True,'full_data_check':True,'restore_browser_index':True,'partial_restore_literal_names':True,'no_overwrite':True,'restore_drill':True,'monthly_verify_cli':True,'watch_quiet_when_healthy':True}))
+ print(json.dumps({'initial_backup':True,'unchanged_new_data_bytes':second['stats']['deduplicated_size'],'fresh_cache_full_restore':True,'hashes_modes_xattrs_links_match':True,'sqlite_integrity':True,'full_data_check':True,'restore_browser_index':True,'partial_restore_literal_names':True,'no_overwrite':True,'restore_drill':True,'monthly_verify_cli':True,'watch_quiet_when_healthy':True,'second_destination_backup_and_verify':True}))

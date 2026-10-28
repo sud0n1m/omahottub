@@ -7,7 +7,8 @@ from pathlib import Path
 from common import STATE,read,write
 import browse
 # (key, repeat): each problem notifies once, then at most this often while it lasts.
-REPEAT={'failed':timedelta(hours=12),'stale':timedelta(hours=12),'cleanup':timedelta(hours=12),'unverified':timedelta(days=7)}
+REPEAT={'failed':timedelta(hours=12),'stale':timedelta(hours=12),'cleanup':timedelta(hours=12),'unverified':timedelta(days=7),'behind':timedelta(days=3)}
+BEHIND=timedelta(days=8)
 DRILL_FILES=25
 DRILL_MAX_BYTES=50*1000**2
 
@@ -18,19 +19,27 @@ def when(value):
     except (TypeError,ValueError):return None
 
 def problems(c,at):
-    found={}
-    saved=read(STATE/'last-success.json',{});status=read(STATE/'status.json',{});check=read(STATE/'last-check.json',{})
+    found={};status=read(STATE/'status.json',{})
     if (STATE/'cleanup-needed.json').exists():
         found['cleanup']=('Backup snapshot needs cleanup','Backups are paused until the leftover snapshot is removed. Run: omahottub doctor')
     if status.get('state')=='failed':
-        found['failed']=('Backup failed','The latest backup or check failed. Earlier backups are still available. Open the Omahottub panel for details.')
-    last=when(saved.get('finished'))
-    if not last or at-last>timedelta(hours=c.get('stale_hours',36)):
-        age='No backup has been saved yet.' if not last else 'Last saved %s (%d days ago).'%(last.astimezone(at.tzinfo).strftime('%a %b %-d, %H:%M'),(at-last).days)
-        found['stale']=('Backups have stopped',age+' Backups need AC power, the home network and a logged-in session.')
-    checked=when(check.get('finished'))
-    if last and (not checked or at-checked>timedelta(days=c.get('verify_days',30)+14)):
-        found['unverified']=('Backup data check overdue','The monthly repository check and restore drill have not passed recently. Run: omahottub verify')
+        found['failed']=('Backup failed',(status.get('reason') or 'The latest backup or check failed')+'. Earlier backups are still available. Open the Omahottub panel for details.')
+    targets=c.get('targets') or [dict(c,name='nas',receipt='last-success.json',check='last-check.json')]
+    saved={t['name']:when(read(STATE/t['receipt'],{}).get('finished')) for t in targets}
+    newest=max([x for x in saved.values() if x],default=None)
+    if not newest or at-newest>timedelta(hours=c.get('stale_hours',36)):
+        age='No backup has been saved yet.' if not newest else 'Last saved %s (%d days ago).'%(newest.astimezone(at.tzinfo).strftime('%a %b %-d, %H:%M'),(at-newest).days)
+        found['stale']=('Backups have stopped',age+' Backups need AC power and a logged-in session; the home copy also needs the home network.')
+    elif len(targets)>1:
+        # One destination quietly falling behind is worth knowing, but less urgent.
+        behind=[t['name'] for t in targets if not saved[t['name']] or at-saved[t['name']]>BEHIND]
+        if behind:found['behind']=('Some backups are behind','No backup to %s in over 8 days. Other destinations are current.'%', '.join(behind))
+    late=[]
+    for t in targets:
+        checked=when(read(STATE/t['check'],{}).get('finished'))
+        if saved[t['name']] and (not checked or at-checked>timedelta(days=t.get('verify_days',c.get('verify_days',30))+14)):late.append(t['name'])
+    if late:
+        found['unverified']=('Backup data check overdue','The scheduled data check and restore drill have not passed recently for %s. Run: omahottub verify'%', '.join(late))
     return found
 
 def watch(c,at=None,notify=None):
@@ -46,7 +55,7 @@ def watch(c,at=None,notify=None):
     return sorted(found)
 
 def verify_due(c,at=None):
-    at=at or datetime.now().astimezone();check=read(STATE/'last-check.json',{});done=when(check.get('finished'))
+    at=at or datetime.now().astimezone();check=read(STATE/c.get('check','last-check.json'),{});done=when(check.get('finished'))
     return check.get('profile')!=c['profile'] or not done or at-done>=timedelta(days=c.get('verify_days',30))
 
 def sha(path):

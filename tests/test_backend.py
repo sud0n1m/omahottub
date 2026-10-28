@@ -41,14 +41,14 @@ class Backend(unittest.TestCase):
  def test_failure_always_cleans_snapshot(self):
   c={'profile':'one','require_ac':False}
   expected='/var/lib/omarchy-backup/home/'+Path.home().name
-  with patch.object(backup,'read',return_value={}),patch.object(backup,'emit'),patch.object(backup,'snapshot',side_effect=[expected,'']) as snap,patch.object(backup,'capture',side_effect=RuntimeError('fixture')):
+  with patch.object(backup,'reachable',return_value=True),patch.object(backup,'read',return_value={}),patch.object(backup,'emit'),patch.object(backup,'snapshot',side_effect=[expected,'']) as snap,patch.object(backup,'capture',side_effect=RuntimeError('fixture')):
    with self.assertRaises(RuntimeError):backup.run(c)
    self.assertEqual([x.args[0] for x in snap.call_args_list],['create','delete'])
  def test_no_snapshot_for_covered_slot(self):
   with patch.object(backup,'read',return_value={}),patch.object(backup,'due',return_value=False),patch.object(backup,'emit'),patch.object(backup,'snapshot') as snap:
    backup.run({'profile':'one'});snap.assert_not_called()
  def test_cleanup_failure_stays_visible_until_explicit_recovery(self):
-  with tempfile.TemporaryDirectory() as d,patch.object(backup,'STATE',Path(d)),patch.object(backup,'read',return_value={}),patch.object(backup,'emit'),patch.object(backup,'capture') as capture:
+  with tempfile.TemporaryDirectory() as d,patch.object(backup,'STATE',Path(d)),patch.object(backup,'reachable',return_value=True),patch.object(backup,'read',return_value={}),patch.object(backup,'emit'),patch.object(backup,'capture') as capture:
    c={'profile':'one','require_ac':False};expected='/var/lib/omarchy-backup/home/'+Path.home().name
    with patch.object(backup,'snapshot',side_effect=[expected,RuntimeError('cleanup failed')]):
     with self.assertRaises(RuntimeError):backup.run(c)

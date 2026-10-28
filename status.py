@@ -247,10 +247,15 @@ def legacy_main():
     print(json.dumps(data, ensure_ascii=False))
 
 
-def borg_view(current, receipt, check, c, service, timer, now):
+def borg_view(current, receipt, check, c, service, timer, now, extra=()):
     # Keep saved evidence independent of later failed, skipped or checking runs.
     from backend.backup import due
     saved = receipt if isinstance(receipt, dict) and receipt.get('profile') == c['profile'] else {}
+    # Extra destinations: (target, receipt, check). The newest save anywhere counts as saved.
+    others = [(t, r if isinstance(r, dict) and r.get('profile') == t['profile'] else {}, k) for t, r, k in extra]
+    for t, r, _ in others:
+        if parse_time(r.get('finished')) and (not parse_time(saved.get('finished')) or parse_time(r['finished']) > parse_time(saved['finished'])):
+            saved = r
     saved_at = parse_time(saved.get('finished'))
     if not saved_at or saved_at > now: saved = {}; saved_at = None
     stats = saved.get('stats', {})
@@ -266,7 +271,7 @@ def borg_view(current, receipt, check, c, service, timer, now):
     running = service.get('ActiveState') in ('active','activating','deactivating')
     stopping = service.get('ActiveState') == 'deactivating'
     enabled = timer.get('ActiveState') == 'active' and timer.get('UnitFileState') in ('enabled','enabled-runtime')
-    is_due = due(saved, c, now)
+    is_due = due(saved, c, now) and all(due(r, t, now) for t, r, _ in others)
     slot = now.replace(hour=c.get('due_hour',18),minute=0,second=0,microsecond=0)
     if now < slot: slot -= timedelta(days=1)
     next_dt = next_check(timer, now) if enabled else None
@@ -280,6 +285,8 @@ def borg_view(current, receipt, check, c, service, timer, now):
         state,headline,reason = 'failure','Backup needs attention','The latest operation failed. Previous saved backups remain available; inspect the private runner logs.'
     elif is_due and current.get('reason') == 'power':
         state,headline,reason = 'power','Waiting for power','The last check could not confirm external AC power.'
+    elif is_due and current.get('reason') == 'network':
+        state,headline,reason = 'nas','Waiting for network','No backup destination was reachable at the last check.'
     if running:
         state,headline = ('stopping','Stopping backup…') if stopping else ('running','Backup operation running…')
         reason = 'Waiting for the operation to stop.' if stopping else phases.get(current.get('reason'),'Checking service status')
@@ -300,7 +307,9 @@ def borg_view(current, receipt, check, c, service, timer, now):
         timerState='Active' if enabled else 'Disabled or inactive',lastAttempt=stamp(current.get('time'),now),
         lastAttemptAbsolute=absolute(current.get('time'),now),lastCheckTime=current.get('time',''),
         currentActivity=phases.get(current.get('reason'),'Service running'),actionHint='No automatic deletion; inspect logs after failures.',
-        retention='All archives retained. Automatic pruning and compaction are disabled.')
+        retention='All archives retained. Automatic pruning and compaction are disabled.',
+        destinations='\n'.join([f"{c.get('name','nas')}: {stamp(receipt.get('finished'),now) if isinstance(receipt,dict) and receipt.get('profile')==c['profile'] else 'None recorded'}"]
+            + [f"{t['name']}: {stamp(r.get('finished'),now) if r else 'None recorded'}" for t, r, _ in others]) if others else '')
 
 
 def main():
@@ -315,8 +324,9 @@ def main():
                 try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
                 except BlockingIOError:service=dict(service or {},ActiveState='active')
         except FileNotFoundError:pass
+        extra=[(t,read(borg_state/t['receipt'],{}),read(borg_state/t['check'],{})) for t in c['targets'][1:]]
         data=borg_view(read(borg_state/'status.json',{}),read(borg_state/'last-success.json',{}),read(borg_state/'last-check.json',{}),c,
-            service,unit_properties('omarchy-backup.timer'),datetime.now().astimezone())
+            service,unit_properties('omarchy-backup.timer'),datetime.now().astimezone(),extra)
     except Exception:
         data=dict(backend='borg',state='unavailable',headline='Backup setup needs attention',reason='Could not read the Borg configuration or local status.',canStart=False,managerAvailable=False)
     print(json.dumps(data,ensure_ascii=False))

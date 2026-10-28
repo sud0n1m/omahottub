@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Back up to several destinations from one snapshot. Unreachable destinations
+  are skipped, not failed. A failing destination doesn't stop the others. Each
+  has its own receipts and check schedule, and alerts and the panel reflect the
+  newest save anywhere.
+- Fix `verify_due` to read each destination's own check record.
 - Add `watch`: critical desktop notifications for failed backups or checks,
   backups stopped for 36 hours, pending snapshot cleanup and an overdue monthly
   check, with per-problem repeat limits. Runs hourly and on unit failure.

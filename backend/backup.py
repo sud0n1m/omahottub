@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Unprivileged Borg runner. Snapshot privileges are confined to snapshot.py."""
-import argparse,fcntl,json,os,re,shlex,signal,subprocess,sys,time,uuid
+import argparse,fcntl,json,os,re,shlex,signal,socket,subprocess,sys,time,uuid
+from urllib.parse import urlsplit
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parent))
@@ -56,36 +57,50 @@ def borg(c,args,label,cwd=None,output=True):
 def snapshot(action):
     return subprocess.check_output(['/usr/bin/sudo','-n',HELPER,action],text=True,timeout=60).strip()
 
+def reachable(t,timeout=5):
+    # A destination that cannot be reached (away from home, offline) is skipped, not failed.
+    url=urlsplit(t['repository'])
+    if not url.hostname:return True
+    try:
+        with socket.create_connection((url.hostname,url.port or 22),timeout=timeout):return True
+    except OSError:return False
+
 def run(c):
     if (STATE/'cleanup-needed.json').exists():raise RuntimeError('Snapshot cleanup requires attention; clean up and run doctor')
-    receipt=read(STATE/'last-success.json',{})
-    if not due(receipt,c):emit('skipped','covered',c);return
+    pending=[t for t in c.get('targets',[c]) if due(read(STATE/t.get('receipt','last-success.json'),{}),t)]
+    if not pending:emit('skipped','covered',c);return
     if c.get('require_ac',True) and not ac_online():emit('skipped','power',c);return
-    made=False
+    pending=[t for t in pending if reachable(t)]
+    if not pending:emit('skipped','network',c);return
+    made=False;failed=[]
     try:
         emit('running','snapshot',c)
         # The root helper never executes this user-owned runner.
         source=Path(snapshot('create'));made=True
         expected=Path('/var/lib/omarchy-backup/home')/Path.home().name
         if source!=expected:raise RuntimeError('Unexpected snapshot path')
-        emit('running','backup',c)
+        # One frozen snapshot feeds every destination, so their archives match.
         name='home-'+datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')+'-'+uuid.uuid4().hex[:8]
-        receipt=capture(c,source,name)
-        emit('success','saved',c)
+        for t in pending:
+            emit('running','backup',c,destination=t.get('name','nas'))
+            try:capture(t,source,name)
+            except Exception:failed.append(t.get('name','nas'))
     finally:
         if made:
             try:snapshot('delete')
             except BaseException:
                 write(STATE/'cleanup-needed.json',{'time':now()})
                 raise
+    if failed:raise RuntimeError('Backup failed for '+', '.join(failed)+'; inspect private backup logs')
+    emit('success','saved',c)
 
 def capture(c,source,name):
     write(STATE/'capture-config.json',c)
-    output=borg(c,['create','--json','--compression','zstd,3','--lock-wait','30','--paths-from-command','--paths-delimiter','\\0',c['repository']+'::'+name,'--','/usr/bin/python3','-I',str(Path(__file__).with_name('paths.py')),str(STATE/'capture-config.json')],'backup',source)
+    output=borg(c,['create','--json','--compression','zstd,3','--lock-wait','30','--paths-from-command','--paths-delimiter','\\0',c['repository']+'::'+name,'--','/usr/bin/python3','-I',str(Path(__file__).with_name('paths.py')),str(STATE/'capture-config.json')],'backup'+c.get('label',''),source)
     archive=json.loads(output)['archive']
-    receipt={'archive':name,'finished':now(),'profile':c['profile'],'duration_s':archive['duration'],'stats':archive['stats']}
+    receipt={'archive':name,'finished':now(),'profile':c['profile'],'destination':c.get('name','nas'),'duration_s':archive['duration'],'stats':archive['stats']}
     # Saved evidence survives a later snapshot cleanup or verification failure.
-    write(STATE/'last-success.json',receipt)
+    write(STATE/c.get('receipt','last-success.json'),receipt)
     return receipt
 
 def main():
@@ -96,7 +111,7 @@ def main():
     # Browsing an already-indexed archive is local: no lock, NAS or Borg needed.
     if a.action=='ls' and browse.indexed(browse.archive_name(a.archive)):return show(browse.listing(a.archive,a.path or ''),a.json)
     if a.action=='watch':print('Problems: '+(', '.join(watch.watch(c)) or 'none'));return
-    if a.action=='verify' and not watch.verify_due(c):print('Monthly check not due');return
+    if a.action=='verify' and not any(watch.verify_due(t) for t in c.get('targets',[c])):print('Monthly check not due');return
     if a.action=='verify' and c.get('require_ac',True) and not ac_online():print('Monthly check waits for AC power');return
     with (STATE/'runner.lock').open('a') as lock:
         try:fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -122,10 +137,17 @@ def main():
                 emit('running','verify',c);borg(c,['check','--verify-data','--lock-wait','30',c['repository']],'check')
                 write(STATE/'last-check.json',{'finished':now(),'profile':c['profile']});emit('success','verified',c)
             elif a.action=='verify':
-                emit('running','verify',c);borg(c,['check','--verify-data','--lock-wait','30',c['repository']],'check')
-                emit('running','drill',c);result=watch.drill(c,borg)
-                write(STATE/'last-check.json',{'finished':now(),'profile':c['profile'],'drill':result});emit('success','verified',c)
-                print('Repository data check passed; restore drill compared %(compared)d of %(sampled)d sampled files with 0 mismatches.'%result)
+                failed=[]
+                for t in c.get('targets',[c]):
+                    if not watch.verify_due(t) or not reachable(t):continue
+                    try:
+                        emit('running','verify',c,destination=t.get('name','nas'));borg(t,['check','--verify-data','--lock-wait','30',t['repository']],'check'+t.get('label',''))
+                        emit('running','drill',c,destination=t.get('name','nas'));result=watch.drill(t,borg)
+                        write(STATE/t.get('check','last-check.json'),{'finished':now(),'profile':t['profile'],'drill':result})
+                        print('%s: data check passed; restore drill compared %d of %d sampled files with 0 mismatches.'%(t.get('name','nas'),result['compared'],result['sampled']))
+                    except Exception as e:failed.append(t.get('name','nas'));print('%s: %s'%(t.get('name','nas'),e))
+                if failed:raise RuntimeError('Data check failed for '+', '.join(failed))
+                emit('success','verified',c)
             elif a.action=='export-key':
                 if not a.destination or a.destination.exists():raise ValueError('Choose a new destination for the encrypted key export')
                 borg(c,['key','export',c['repository'],str(a.destination.absolute())],'export-key');print('Exported encrypted key. Store it and the password off this machine.')
@@ -143,7 +165,8 @@ def main():
                 borg(c,['extract',c['repository']+'::'+a.archive],'restore',a.destination.absolute())
                 print('Extracted. Verify files and application recovery before using them; foreign ownership may map to your user.')
         except BaseException:
-            if a.action in ['run','check','verify']:emit('failed','operation failed; inspect private runner logs',c)
+            # Runner errors name destinations and private log files, never paths or secrets.
+            if a.action in ['run','check','verify']:emit('failed',str(sys.exc_info()[1]) if sys.exc_info()[0] is RuntimeError else 'operation failed; inspect private runner logs',c)
             raise
 def show(value,as_json):
     if as_json:print(json.dumps(value));return
