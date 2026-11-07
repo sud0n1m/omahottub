@@ -27,7 +27,12 @@ Normal service stop uses the whole control group. The runner terminates its
 owned Borg/SSH process group before snapshot cleanup on handled interruption.
 SIGKILL and sudden power loss cannot execute that cleanup.
 
-A stale helper snapshot prevents the next run. After confirming all writers
+A snapshot left by an earlier boot (reboot, crash or power loss during a run)
+is removed by the next run. The runner records the boot ID before each
+snapshot. If create then finds a snapshot whose run was in an earlier boot, no
+process can still be reading it, so the runner calls the helper's checked
+`delete` and creates a fresh one. A snapshot made by a run in the current boot,
+or one with no record, still stops the run. After confirming all writers
 stopped, inspect and invoke the exact helper:
 
 ```sh

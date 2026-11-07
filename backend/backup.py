@@ -8,6 +8,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parent))
 from common import CONFIG,STATE,config,read,write
 import browse,watch
 HELPER='/usr/local/libexec/omarchy-backup/snapshot'
+BOOT=Path('/proc/sys/kernel/random/boot_id')
 
 def now():return datetime.now().astimezone().isoformat()
 def due(receipt,c,at=None):
@@ -57,6 +58,22 @@ def borg(c,args,label,cwd=None,output=True):
 def snapshot(action):
     return subprocess.check_output(['/usr/bin/sudo','-n',HELPER,action],text=True,timeout=60).strip()
 
+def boot_id():return BOOT.read_text().strip()
+
+def create_snapshot():
+    # The boot that made the last snapshot is recorded before each attempt, so a
+    # snapshot that outlives its run (power loss, reboot) can be traced to its boot.
+    marker=STATE/'snapshot-boot.json';left=read(marker,{}).get('boot');boot=boot_id()
+    write(marker,{'boot':boot,'time':now()})
+    try:return snapshot('create')
+    except subprocess.CalledProcessError:
+        if snapshot('audit')=='ready':raise
+        # A reboot ends every process that could still read the snapshot, so one left
+        # by an earlier boot is safe to remove. One from this boot still needs a person.
+        if not left or left==boot:raise RuntimeError('Snapshot left by a run in this boot; see RECOVERY.md')
+        snapshot('delete')
+        return snapshot('create')
+
 def reachable(t,timeout=5):
     # A destination that cannot be reached (away from home, offline) is skipped, not failed.
     url=urlsplit(t['repository'])
@@ -76,7 +93,7 @@ def run(c):
     try:
         emit('running','snapshot',c)
         # The root helper never executes this user-owned runner.
-        source=Path(snapshot('create'));made=True
+        source=Path(create_snapshot());made=True
         expected=Path('/var/lib/omarchy-backup/home')/Path.home().name
         if source!=expected:raise RuntimeError('Unexpected snapshot path')
         # One frozen snapshot feeds every destination, so their archives match.

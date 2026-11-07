@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Recover from a snapshot left behind by a reboot or power loss during a run.
+  The next run removes it through the helper's checked `delete` instead of
+  failing every hour until someone cleans up. A snapshot from the current boot
+  still stops the run.
 - Back up to several destinations from one snapshot. Unreachable destinations
   are skipped, not failed. A failing destination doesn't stop the others. Each
   has its own receipts and check schedule, and alerts and the panel reflect the
