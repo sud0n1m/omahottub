@@ -1,4 +1,4 @@
-import importlib.util,json,os,stat,sys,tempfile,unittest
+import importlib.util,json,os,stat,subprocess,sys,tempfile,unittest
 from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from unittest.mock import patch
@@ -41,9 +41,36 @@ class Backend(unittest.TestCase):
  def test_failure_always_cleans_snapshot(self):
   c={'profile':'one','require_ac':False}
   expected='/var/lib/omarchy-backup/home/'+Path.home().name
-  with patch.object(backup,'reachable',return_value=True),patch.object(backup,'read',return_value={}),patch.object(backup,'emit'),patch.object(backup,'snapshot',side_effect=[expected,'']) as snap,patch.object(backup,'capture',side_effect=RuntimeError('fixture')):
+  with tempfile.TemporaryDirectory() as d,patch.object(backup,'STATE',Path(d)),patch.object(backup,'reachable',return_value=True),patch.object(backup,'read',return_value={}),patch.object(backup,'emit'),patch.object(backup,'snapshot',side_effect=[expected,'']) as snap,patch.object(backup,'capture',side_effect=RuntimeError('fixture')):
    with self.assertRaises(RuntimeError):backup.run(c)
    self.assertEqual([x.args[0] for x in snap.call_args_list],['create','delete'])
+ def leftover(self,marker,audit='snapshot state exists',create_error=True):
+  # Runs a backup whose first snapshot create fails; returns helper calls, error and capture count.
+  expected='/var/lib/omarchy-backup/home/'+Path.home().name
+  calls=[]
+  def snap(action):
+   calls.append(action)
+   if action=='create' and calls.count('create')==1 and create_error:raise subprocess.CalledProcessError(1,'snapshot')
+   return {'create':expected,'audit':audit}.get(action,'')
+  with tempfile.TemporaryDirectory() as d,patch.object(backup,'STATE',Path(d)),patch.object(backup,'boot_id',return_value='boot-now'),\
+       patch.object(backup,'reachable',return_value=True),patch.object(backup,'read',side_effect=lambda p,default=None:{'boot':marker} if marker and p.name=='snapshot-boot.json' else (default if default is not None else {})),\
+       patch.object(backup,'emit'),patch.object(backup,'snapshot',side_effect=snap),patch.object(backup,'capture') as capture:
+   try:backup.run({'profile':'one','require_ac':False});err=None
+   except Exception as e:err=e
+   self.assertEqual(json.loads((Path(d)/'snapshot-boot.json').read_text())['boot'],'boot-now')
+  return calls,err,capture.call_count
+ def test_snapshot_left_by_an_earlier_boot_is_removed_and_the_run_continues(self):
+  calls,err,captured=self.leftover('boot-before')
+  self.assertIsNone(err);self.assertEqual(calls,['create','audit','delete','create','delete']);self.assertEqual(captured,1)
+ def test_snapshot_left_in_this_boot_still_stops_the_run(self):
+  calls,err,captured=self.leftover('boot-now')
+  self.assertRegex(str(err),'this boot');self.assertEqual(calls,['create','audit']);self.assertEqual(captured,0)
+ def test_snapshot_of_unknown_origin_still_stops_the_run(self):
+  calls,err,captured=self.leftover(None)
+  self.assertRegex(str(err),'this boot');self.assertEqual(calls,['create','audit']);self.assertEqual(captured,0)
+ def test_other_create_failures_are_not_treated_as_leftovers(self):
+  calls,err,captured=self.leftover('boot-before',audit='ready')
+  self.assertIsInstance(err,subprocess.CalledProcessError);self.assertEqual(calls,['create','audit']);self.assertEqual(captured,0)
  def test_no_snapshot_for_covered_slot(self):
   with patch.object(backup,'read',return_value={}),patch.object(backup,'due',return_value=False),patch.object(backup,'emit'),patch.object(backup,'snapshot') as snap:
    backup.run({'profile':'one'});snap.assert_not_called()
